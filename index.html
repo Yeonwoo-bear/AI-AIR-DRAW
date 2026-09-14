@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>AI Air Draw · AI융합학부</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- 실제 에러 메시지를 화면에 그대로 보여주는 배너 (디버깅용) -->
+<div id="errorBanner"></div>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span><span><b>AI Air Draw</b> · AI융합학부 부스</span></div>
+  <div class="navbtns">
+    <button class="navbtn" id="navPlay">그리기</button>
+    <button class="navbtn" id="navBoard">랭킹</button>
+  </div>
+</div>
+
+<!-- ===================== 1. 등록 화면 ===================== -->
+<section class="screen visible" id="screen-register">
+  <div class="center">
+    <h1 class="title">허공에 그리면<br><span class="accent">AI가 맞혀요</span></h1>
+    <p class="lede">카메라가 손가락 끝을 실시간으로 추적하고, 그린 그림을 AI가 바로 인식해서 확률(%)로 보여줘요. 오늘의 주제는 <b style="color:var(--ink)">동물</b> 입니다.</p>
+  </div>
+  <div class="reg-wrap">
+    <div class="card">
+      <div class="field">
+        <label for="inNick">닉네임</label>
+        <input id="inNick" maxlength="10" placeholder="예: 그림왕민수" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="inPhone">전화번호</label>
+        <input id="inPhone" maxlength="13" placeholder="010-0000-0000" autocomplete="off" inputmode="numeric" />
+      </div>
+      <div class="field">
+        <label for="inDept">학과</label>
+        <input id="inDept" maxlength="20" placeholder="예: AI융합학부" autocomplete="off" list="deptList" />
+        <datalist id="deptList">
+          <option value="AI융합학부"></option>
+        </datalist>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="inConsent" />
+        <p>입력한 닉네임·학과는 랭킹보드에 공개됩니다. 전화번호는 경품 추첨 연락 목적에만 사용되며 랭킹보드에는 표시되지 않습니다.</p>
+      </div>
+      <div class="err" id="regErr">닉네임, 전화번호, 학과를 모두 입력하고 동의에 체크해주세요.</div>
+      <button class="btn" id="btnRegister">시작하기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 2. 플레이 화면 ===================== -->
+<section class="screen" id="screen-play">
+  <div class="word-card">
+    <div>
+      <div class="label" id="wcLabel">제시어</div>
+      <div class="word" id="wcWord">준비 중...</div>
+    </div>
+    <div class="timerwrap" id="timerWrap" style="display:none;">
+      <div class="timerbar"><i id="timerFill"></i></div>
+      <div class="timernum mono" id="timerNum">25</div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="pane">
+      <h3><span class="pulse"></span> 손 인식 (Computer Vision)</h3>
+      <div class="camframe">
+        <div class="mirror">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="skelCanvas"></canvas>
+        </div>
+        <div class="camoverlay" id="camOverlay">
+          <div class="spinner"></div>
+          <div class="hint" id="camHint">카메라와 AI 모델을 불러오는 중...</div>
+        </div>
+      </div>
+      <div class="hint" id="pinchHint" style="margin-top:8px;">👍☝️ 엄지와 검지를 <b style="color:var(--amber)">붙이면(핀치)</b> 그리기 시작, 떼면 펜을 뗀 상태예요.</div>
+    </div>
+
+    <div class="pane">
+      <h3>내 그림</h3>
+      <div class="camframe" style="background:#fff;">
+        <canvas id="drawCanvas"></canvas>
+      </div>
+      <div class="guesslive" id="guessLive"></div>
+    </div>
+  </div>
+
+  <div class="playbtns" id="playbtnsPre">
+    <button class="btn" id="btnPickWord">단어 뽑고 시작하기</button>
+  </div>
+  <div class="playbtns" id="playbtnsDraw" style="display:none;">
+    <button class="btn ghost sm" id="btnClear">지우기</button>
+    <button class="btn violet sm" id="btnSubmit">다 그렸어요, 채점하기</button>
+  </div>
+
+  <div class="center" id="countdownWrap" style="display:none; padding:40px 0;">
+    <div class="countdown-num" id="countdownNum">3</div>
+  </div>
+</section>
+
+<!-- ===================== 3. 결과 화면 ===================== -->
+<section class="screen" id="screen-result">
+  <div class="result-grid">
+    <div class="result-left">
+      <div class="verdict" id="rVerdict">채점 결과</div>
+      <p class="lede" style="margin:0 0 16px; text-align:left;" id="rSub">-</p>
+      <img class="snap" id="rSnap" alt="내가 그린 그림" />
+    </div>
+    <div class="result-right">
+      <div class="scorebox">
+        <div style="font-size:12.5px;color:var(--ink-muted);margin-bottom:4px;">이번 판 점수</div>
+        <div class="scoretotal mono" id="rTotal">0</div>
+        <div class="scorerow"><span>⚡ 속도 점수</span><span class="mono" id="rSpeed">0</span></div>
+        <div class="scorerow"><span>🎯 확신도 점수</span><span class="mono" id="rConf">0</span></div>
+      </div>
+      <div class="top5">
+        <h4>AI가 본 상위 5개 후보</h4>
+        <div id="rTop5"></div>
+      </div>
+    </div>
+  </div>
+  <div class="playbtns" style="margin-top:20px;">
+    <button class="btn" id="btnPlayAgain">다른 단어로 다시 그리기</button>
+    <button class="btn ghost" id="btnGoBoard">랭킹보드 보기</button>
+  </div>
+</section>
+
+<!-- ===================== 4. 랭킹보드 ===================== -->
+<section class="screen" id="screen-board">
+  <h1 class="title" style="font-size:36px;">랭킹보드</h1>
+  <p class="lede" style="margin-bottom:20px;">속도 점수 + 확신도 점수 합산, 최고 기록 기준</p>
+  <div class="board" id="boardList">
+    <div class="brow head"><div>순위</div><div>닉네임 · 학과</div><div class="dept-col"></div><div style="text-align:right;">점수</div></div>
+    <div class="empty">아직 기록이 없어요. 첫 번째 도전자가 되어보세요!</div>
+  </div>
+  <div class="playbtns" style="margin-top:20px;">
+    <button class="btn" id="btnBoardPlay">다시 도전하기</button>
+  </div>
+  <span class="admin-link" id="adminLink">참가자 연락처 목록 (운영자용)</span>
+  <footer class="note">AI Air Draw · MediaPipe 기반 손 추적(ml5 handPose) + QuickDraw 345종 학습 CNN(ml5 DoodleNet)으로 브라우저에서 100% 로컬로 동작합니다.<br>랭킹/연락처 데이터는 서버로 전송되지 않고 이 기기(브라우저)의 localStorage에만 저장됩니다.</footer>
+</section>
+
+<!-- ===================== 관리자 모달 ===================== -->
+<div class="modal-bg" id="adminModal">
+  <div class="modal">
+    <h3>참가자 연락처 (이 기기에만 저장됨)</h3>
+    <p class="hint" id="adminEmpty">아직 참가자가 없습니다.</p>
+    <table id="adminTable" style="display:none;">
+      <thead><tr><th>닉네임</th><th>학과</th><th>전화번호</th><th>최고점수</th></tr></thead>
+      <tbody id="adminBody"></tbody>
+    </table>
+    <div class="playbtns" style="margin-top:18px;">
+      <button class="btn violet sm" id="btnCopyContacts">표 형식으로 복사</button>
+      <button class="btn ghost sm" id="btnCloseAdmin">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- crossorigin="anonymous" 를 꼭 넣어야 아래 script.js 의 window.onerror 가
+     ml5 내부 에러의 실제 메시지를 받아올 수 있습니다 (없으면 전부 "Script error."로만 보임) -->
+<script src="https://unpkg.com/[email protected]/dist/ml5.min.js" crossorigin="anonymous"></script>
+<script src="script.js"></script>
+</body>
+</html>
